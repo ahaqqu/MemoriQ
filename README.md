@@ -50,6 +50,8 @@ permission and directory checks; it will not upgrade or restart services.
 |------|--------|
 | Start services | `./immich/start.sh` |
 | Stop services | `./immich/stop.sh` |
+| Backup to an external disk | `./immich/backup.sh <destination>` |
+| Restore from a backup | `./immich/restore.sh <backup-folder>` |
 | Re-apply the pinned release | `./immich/update.sh` |
 | Change to a new pinned release | `./immich/set-version.sh <version>` |
 
@@ -66,14 +68,49 @@ move to a newer version, run the version helper with the target release tag:
 This updates the pinned version in `immich/.env` and runs `./immich/update.sh`
 for you. No manual editing of `.env` is required.
 
-## Data storage
+## Backup and restore
 
 Uploaded media and the database are stored under `./data/immich/` by default.
 This path is configured in `immich/.env` and is git-ignored so large files are
 never committed.
 
-Keep regular backups of `./data/immich/` and `immich/.env`; the database
-password is stored only in `.env`.
+The database password is stored only in `immich/.env`, so keep that file safe.
+
+### Backup
+
+Run the backup script to copy photos, a PostgreSQL dump, and Immich config to
+an external destination:
+
+```bash
+./immich/backup.sh /mnt/external-disk/backups
+```
+
+Each run creates a timestamped folder: `immich-backup-YYYYMMDD-HHMMSS`.
+
+### Restore
+
+Point `restore.sh` at the timestamped backup folder:
+
+```bash
+./immich/restore.sh /mnt/external-disk/backups/immich-backup-YYYYMMDD-HHMMSS
+```
+
+`restore.sh` is **destructive**: it stops Immich, saves copies of the current
+`.env` and `docker-compose.yml` as `.restore-backup-*`, restores the backed-up
+config, replaces the photo library, wipes the PostgreSQL data directory,
+replays the SQL dump, and starts the stack again.
+
+You can restore onto the **same host** (previous data is replaced) or a
+**brand-new host** (run `./immich/setup.sh` first to install Docker and create
+the initial directories, then run `restore.sh`). In both cases `restore.sh`
+overwrites the active `.env` with the backed-up one so the database password
+matches the restored database.
+
+Use `--yes` to skip the interactive confirmation:
+
+```bash
+./immich/restore.sh --yes /mnt/external-disk/backups/immich-backup-YYYYMMDD-HHMMSS
+```
 
 ## Network and security
 
