@@ -10,12 +10,13 @@ set -euo pipefail
 #   /mnt/usb/immich-backup-20260804-120000
 #
 # This script will:
-#   1. Stop all Immich services.
-#   2. Back up the current immich/.env and immich/docker-compose.yml.
-#   3. Restore the backed-up .env and docker-compose.yml.
-#   4. Restore the photo/video library to UPLOAD_LOCATION.
-#   5. Wipe and recreate the PostgreSQL data directory and replay the SQL dump.
-#   6. Start all Immich services.
+#   1. Print a comparison report of current data vs. the backup.
+#   2. Stop all Immich services.
+#   3. Back up the current immich/.env and immich/docker-compose.yml.
+#   4. Restore the backed-up .env and docker-compose.yml.
+#   5. Restore the photo/video library to UPLOAD_LOCATION.
+#   6. Wipe and recreate the PostgreSQL data directory and replay the SQL dump.
+#   7. Start all Immich services.
 #
 # WARNING: this is destructive. Current library and database will be replaced.
 
@@ -107,18 +108,80 @@ ABS_UPLOAD="$(realpath -m "${UPLOAD_LOCATION}" 2>/dev/null || readlink -f "${UPL
 ABS_DB="$(realpath -m "${DB_DATA_LOCATION}" 2>/dev/null || readlink -f "${DB_DATA_LOCATION}")"
 
 # ---------------------------------------------------------------------------
+# Helpers for the comparison report
+# ---------------------------------------------------------------------------
+human_size() {
+  local path="$1"
+  if [[ -e "${path}" ]]; then
+    du -sh "${path}" 2>/dev/null | cut -f1
+  else
+    echo "-"
+  fi
+}
+
+file_count() {
+  local path="$1"
+  if [[ -d "${path}" ]]; then
+    find "${path}" -type f 2>/dev/null | wc -l
+  else
+    echo "0"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Print comparison report
+# ---------------------------------------------------------------------------
+print_report() {
+  local created
+  created="-"
+  if [[ -f "${BACKUP_RUN}/backup-info.txt" ]]; then
+    created="$(grep -E '^Created:' "${BACKUP_RUN}/backup-info.txt" | cut -d' ' -f2- || true)"
+  fi
+
+  echo ""
+  echo "[restore] Pre-restore comparison report"
+  echo "----------------------------------------"
+  echo "Backup:             ${BACKUP_RUN}"
+  if [[ -n "${created}" && "${created}" != "-" ]]; then
+    echo "Backup created:     ${created}"
+  fi
+  echo ""
+  echo "Library"
+  echo "  Current: ${ABS_UPLOAD}"
+  echo "    Size:  $(human_size "${ABS_UPLOAD}")"
+  echo "    Files: $(file_count "${ABS_UPLOAD}")"
+  echo "  Backup:  ${BACKUP_RUN}/library"
+  echo "    Size:  $(human_size "${BACKUP_RUN}/library")"
+  echo "    Files: $(file_count "${BACKUP_RUN}/library")"
+  echo ""
+  echo "Database"
+  echo "  Current data directory: ${ABS_DB}"
+  echo "    Size: $(human_size "${ABS_DB}")"
+  echo "  Backup SQL dump:        ${BACKUP_RUN}/db/immich.sql"
+  echo "    Size: $(human_size "${BACKUP_RUN}/db/immich.sql")"
+  echo ""
+  echo "Config (current vs. backup)"
+  if diff -q "${SCRIPT_DIR}/.env" "${BACKUP_RUN}/config/.env" >/dev/null 2>&1; then
+    echo "  .env:               identical"
+  else
+    echo "  .env:               differs (current will be backed up and overwritten)"
+  fi
+  if diff -q "${SCRIPT_DIR}/docker-compose.yml" "${BACKUP_RUN}/config/docker-compose.yml" >/dev/null 2>&1; then
+    echo "  docker-compose.yml: identical"
+  else
+    echo "  docker-compose.yml: differs (current will be backed up and overwritten)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Confirm destructive operation
 # ---------------------------------------------------------------------------
+print_report
+
 if [[ "${AUTO_YES}" != "true" ]]; then
   cat <<EOF >&2
 
-WARNING: this will DESTROY the current Immich data and replace it with:
-
-  Backup: ${BACKUP_RUN}
-  Library target: ${ABS_UPLOAD}
-  Database target: ${ABS_DB}
-  Config target: ${SCRIPT_DIR}/.env and ${SCRIPT_DIR}/docker-compose.yml
-
+WARNING: this will DESTROY the current Immich data and replace it with the backup.
 A copy of the current config files will be saved first.
 
 Type "restore" to continue:
