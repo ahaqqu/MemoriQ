@@ -4,7 +4,8 @@ set -euo pipefail
 # Shared helpers for the Immich lifecycle scripts.
 # This file is meant to be sourced, not executed directly.
 
-IMMICH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIBS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IMMICH_DIR="$(cd "${LIBS_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${IMMICH_DIR}/.." && pwd)"
 
 require_command() {
@@ -30,7 +31,7 @@ require_env() {
 }
 
 compose() {
-  docker compose -f "${IMMICH_DIR}/docker-compose.yml" --env-file "${IMMICH_DIR}/.env" "$@"
+  docker compose -f "${IMMICH_DIR}/compose/docker-compose.yml" --env-file "${IMMICH_DIR}/.env" "$@"
 }
 
 generate_password() {
@@ -102,4 +103,34 @@ wait_for_immich_api() {
 
   echo "WARNING: Immich API did not respond in time. The containers may still be starting." >&2
   return 1
+}
+
+# Read a value from immich/.env, returning empty if not set.
+env_value() {
+  local key="$1"
+  if [ -f "${IMMICH_DIR}/.env" ]; then
+    grep "^${key}=" "${IMMICH_DIR}/.env" | cut -d= -f2- || true
+  fi
+}
+
+# Re-enable Tailscale Funnel for Immich if it has been set up before.
+# This is called from immich/start.sh so Funnel comes back after a reboot.
+ensure_tailscale_funnel() {
+  if ! command -v tailscale >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ! tailscale status >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ! [ -f "${IMMICH_DIR}/.tailscale-funnel-setup-done" ]; then
+    return 0
+  fi
+
+  echo "[start] Re-enabling Tailscale Funnel..."
+
+  timeout 90 sudo tailscale funnel --yes --bg 127.0.0.1:2283 >/dev/null 2>&1 || {
+    echo "WARNING: Tailscale Funnel could not be re-enabled (timed out or failed)." >&2
+  }
 }

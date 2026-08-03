@@ -16,12 +16,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
-source ./lib.sh
+source ./libs/lib.sh
 
 # --- 1. Ensure Docker is installed ---
 if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
   echo "[setup] Docker or the Docker Compose plugin is not installed."
-  ./install-docker.sh
+  ./libs/install-docker.sh
 fi
 require_docker
 
@@ -66,10 +66,12 @@ echo "  db:     ${DB_DATA_LOCATION}"
 
 # If .env already existed, we only re-applied permissions/directories above.
 # Pull and start services only on the very first setup.
+SETUP_FIRST_RUN=false
 if [ -f .env.setup-done ]; then
   echo ""
   echo "[setup] Setup has already run once. Use ./immich/start.sh or ./immich/update.sh to control services."
 else
+  SETUP_FIRST_RUN=true
   echo "[setup] Pulling Immich images..."
   compose pull
 
@@ -88,3 +90,26 @@ echo "  Web UI: http://127.0.0.1:2283"
 echo "  Data:   ${REPO_ROOT}/data/immich"
 echo ""
 echo "First-time login: create the admin account at http://127.0.0.1:2283/auth/register"
+
+# --- Optional reverse proxy setup, offered once on first run ---
+if [ "${SETUP_FIRST_RUN}" = true ] && [ -t 0 ]; then
+  echo ""
+  echo "[setup] You can also expose Immich securely over the internet via Tailscale Funnel."
+  echo "        This is free, encrypted, and does not require router port forwarding."
+  read -rp "        Set up Tailscale Funnel now? [y/N]: " answer
+  case "${answer}" in
+    [yY]|[yY][eE][sS])
+      echo ""
+      if [ -x "${SCRIPT_DIR}/setup-tailscale.sh" ]; then
+        "${SCRIPT_DIR}/setup-tailscale.sh"
+      else
+        echo "ERROR: setup-tailscale.sh not found or not executable." >&2
+        exit 1
+      fi
+      ;;
+    *)
+      echo "[setup] Skipped Tailscale Funnel setup. You can run it later with:"
+      echo "        ./immich/reverse-proxy/setup.sh"
+      ;;
+  esac
+fi
