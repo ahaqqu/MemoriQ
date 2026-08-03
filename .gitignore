@@ -1,0 +1,19 @@
+# Environment secrets
+.env
+.env.local
+
+# Local data storage
+data/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
