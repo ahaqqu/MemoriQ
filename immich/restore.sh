@@ -12,8 +12,8 @@ set -euo pipefail
 # This script will:
 #   1. Print a comparison report of current data vs. the backup.
 #   2. Stop all Immich services.
-#   3. Back up the current immich/.env and immich/docker-compose.yml.
-#   4. Restore the backed-up .env and docker-compose.yml.
+#   3. Back up the current immich/.env and immich/compose/docker-compose.yml.
+#   4. Restore the backed-up .env and compose/docker-compose.yml.
 #   5. Restore the photo/video library to UPLOAD_LOCATION.
 #   6. Wipe and recreate the PostgreSQL data directory and replay the SQL dump.
 #   7. Start all Immich services.
@@ -81,7 +81,7 @@ BACKUP_RUN="$(realpath -m "${BACKUP_RUN}" 2>/dev/null || readlink -f "${BACKUP_R
 # ---------------------------------------------------------------------------
 # Validate backup contents
 # ---------------------------------------------------------------------------
-for item in library db/immich.sql config/.env config/docker-compose.yml; do
+for item in library db/immich.sql config/.env config/docker-compose.yml compose/docker-compose.yml; do
   if [[ ! -e "${BACKUP_RUN}/${item}" ]]; then
     echo "ERROR: backup is missing expected item: ${item}" >&2
     exit 1
@@ -166,10 +166,10 @@ print_report() {
   else
     echo "  .env:               differs (current will be backed up and overwritten)"
   fi
-  if diff -q "${SCRIPT_DIR}/docker-compose.yml" "${BACKUP_RUN}/config/docker-compose.yml" >/dev/null 2>&1; then
-    echo "  docker-compose.yml: identical"
+  if diff -q "${SCRIPT_DIR}/compose/docker-compose.yml" "${BACKUP_RUN}/config/docker-compose.yml" >/dev/null 2>&1; then
+    echo "  compose/docker-compose.yml: identical"
   else
-    echo "  docker-compose.yml: differs (current will be backed up and overwritten)"
+    echo "  compose/docker-compose.yml: differs (current will be backed up and overwritten)"
   fi
 }
 
@@ -206,12 +206,12 @@ compose down
 # ---------------------------------------------------------------------------
 echo "[restore] Saving current config to .restore-backup-${TIMESTAMP}..."
 cp -a .env ".env.restore-backup-${TIMESTAMP}" || true
-cp -a docker-compose.yml "docker-compose.yml.restore-backup-${TIMESTAMP}" || true
+cp -a compose/docker-compose.yml "docker-compose.yml.restore-backup-${TIMESTAMP}" || true
 
 echo "[restore] Restoring config files from backup..."
 cp -a "${BACKUP_RUN}/config/.env" .env
 chmod 600 .env
-cp -a "${BACKUP_RUN}/config/docker-compose.yml" docker-compose.yml
+cp -a "${BACKUP_RUN}/config/docker-compose.yml" compose/docker-compose.yml
 
 # ---------------------------------------------------------------------------
 # Re-read required values from the restored .env

@@ -22,10 +22,15 @@ MemoriQ is a self-hosted family photo album. Photos and metadata are stored **lo
 ## Current Services
 
 - `immich/` — self-hosted photo/video backup and gallery.
+  - Scripts in the root of `immich/` are meant to be run directly by a person.
+  - `libs/` — internal shared helpers and installers sourced by the scripts above; not meant to be run directly.
+  - `compose/` — internal Docker Compose manifest and related files; not edited by hand during normal operation.
   - `setup.sh` — idempotent first-time setup (installs Docker if missing, generates `.env`, pulls images, starts services).
   - `install-docker.sh` — installs Docker Engine and the Docker Compose plugin using the official installer.
   - `start.sh` / `stop.sh` — daily lifecycle.
   - `backup.sh` — hot backup of photos, a PostgreSQL dump, and Immich config to an external destination (e.g. a USB hard disk).
+  - `restore.sh` — restore Immich from a backup folder.
   - `update.sh` — pull the pinned release images and restart.
   - `set-version.sh` — change the pinned Immich version and update the deployment.
-  - `lib.sh` — shared helpers sourced by the scripts above (not meant to be run directly).
+  - `setup-tailscale.sh` — optional add-on that exposes Immich on a public `*.ts.net` URL via Tailscale Funnel.
+  - `start.sh` — starts Immich and automatically re-enables Tailscale Funnel if it was previously set up.

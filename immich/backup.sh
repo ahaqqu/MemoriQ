@@ -94,7 +94,7 @@ copy_library() {
 
 copy_config() {
   echo "[backup] Copying configuration files..."
-  cp -a .env docker-compose.yml "${CONFIG_DIR}/"
+  cp -a .env compose/docker-compose.yml "${CONFIG_DIR}/"
   chmod 600 "${CONFIG_DIR}/.env" 2>/dev/null || true
 }
 

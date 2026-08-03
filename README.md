@@ -115,9 +115,74 @@ Use `--yes` to skip the interactive confirmation:
 ## Network and security
 
 By default the web UI listens on `127.0.0.1:2283` only. This is the safest
-choice for a single-machine setup. To expose MemoriQ to your LAN, place a
-reverse proxy with TLS in front of it and do not leave the admin registration
-page open to untrusted networks.
+choice for a single-machine setup.
+
+### Expose MemoriQ to the internet securely (Tailscale Funnel)
+
+You can expose Immich on a public `*.ts.net` URL with free, automatic TLS and
+no router port forwarding.
+
+#### 1. Generate a Tailscale authkey
+
+1. Sign up or log in at https://login.tailscale.com.
+2. Go to **Admin console → Settings → Keys** (`https://login.tailscale.com/admin/settings/keys`).
+3. Click **Generate auth key**.
+4. Recommended settings for a server:
+   - **Reusable:** Yes (so the script can re-authenticate after reinstalls).
+   - **Ephemeral:** Yes (the node is removed from your tailnet when it goes offline).
+   - **Pre-approved:** Yes (skips manual device approval).
+   - **Expiry:** 90 days, or set to **No expiry** for a long-lived home server.
+5. Copy the key. It looks like `tskey-auth-...`.
+
+Keep the key secret: anyone with it can join your tailnet.
+
+#### 2. Enable Funnel during first setup
+
+`./immich/setup.sh` will ask at the end:
+
+```text
+Set up Tailscale Funnel now? [y/N]:
+```
+
+Answer `y`, paste the authkey, and the script installs Tailscale, authenticates
+this machine, and exposes Immich on a public HTTPS URL.
+
+#### 3. Enable Funnel later
+
+If you skipped it during setup, run:
+
+```bash
+./immich/setup-tailscale.sh
+```
+
+You can also put the authkey in `immich/.env` first to avoid the prompt:
+
+```bash
+# Edit immich/.env and add:
+TAILSCALE_AUTHKEY=tskey-auth-...
+
+./immich/setup-tailscale.sh
+```
+
+#### 4. Daily lifecycle
+
+| Task | Script |
+|------|--------|
+| Start Immich | `./immich/start.sh` |
+| Stop Immich | `./immich/stop.sh` |
+| Check Funnel status | `sudo tailscale funnel status` |
+
+`./immich/start.sh` automatically re-enables Tailscale Funnel if it was set up
+before, so Immich becomes publicly reachable again after a reboot.
+
+After enabling Funnel, Immich is available at both the local URL and the
+public URL printed by the script.
+
+### Expose MemoriQ to your LAN
+
+If you prefer LAN-only access instead of Tailscale, place a reverse proxy with
+TLS in front of Immich and do not leave the admin registration page open to
+untrusted networks.
 
 ## What to configure after creating the admin user
 
