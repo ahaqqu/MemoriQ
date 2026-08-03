@@ -25,7 +25,7 @@ MemoriQ is a self-hosted family photo album. Photos and metadata are stored **lo
   - `setup.sh` — idempotent first-time setup (installs Docker if missing, generates `.env`, pulls images, starts services).
   - `install-docker.sh` — installs Docker Engine and the Docker Compose plugin using the official installer.
   - `start.sh` / `stop.sh` — daily lifecycle.
-  - `backup.sh` — copy photos, a PostgreSQL dump, and Immich config to an external destination (e.g. a USB hard disk).
+  - `backup.sh` — hot backup of photos, a PostgreSQL dump, and Immich config to an external destination (e.g. a USB hard disk).
   - `update.sh` — pull the pinned release images and restart.
   - `set-version.sh` — change the pinned Immich version and update the deployment.
   - `lib.sh` — shared helpers sourced by the scripts above (not meant to be run directly).
