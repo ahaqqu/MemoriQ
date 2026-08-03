@@ -50,6 +50,7 @@ permission and directory checks; it will not upgrade or restart services.
 |------|--------|
 | Start services | `./immich/start.sh` |
 | Stop services | `./immich/stop.sh` |
+| Backup to an external disk | `./immich/backup.sh <destination>` |
 | Re-apply the pinned release | `./immich/update.sh` |
 | Change to a new pinned release | `./immich/set-version.sh <version>` |
 
