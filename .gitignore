@@ -1,6 +1,7 @@
 # Environment secrets
 .env
 .env.local
+.env.setup-done
 
 # Local data storage
 data/
