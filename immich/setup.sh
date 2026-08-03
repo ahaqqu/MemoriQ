@@ -109,7 +109,7 @@ if [ "${SETUP_FIRST_RUN}" = true ] && [ -t 0 ]; then
       ;;
     *)
       echo "[setup] Skipped Tailscale Funnel setup. You can run it later with:"
-      echo "        ./immich/reverse-proxy/setup.sh"
+      echo "        ./immich/setup-tailscale.sh"
       ;;
   esac
 fi

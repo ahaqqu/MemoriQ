@@ -1,15 +1,6 @@
 # MemoriQ
 
-A self-hosted family photo album. All photos, videos, and metadata stay on your own hardware.
-
-## What you need
-
-- A Linux, macOS, or Windows host running a Bash-compatible shell.
-- Internet access to download Docker images.
-- **Linux:** `setup.sh` installs Docker Engine and the Docker Compose plugin
-  automatically. You need root or `sudo` access for the install step.
-- **macOS / Windows:** install [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-  first, then run `setup.sh`.
+A self-hosted family photo album. Your photos, videos, and metadata stay on your own hardware.
 
 ## Quick start
 
@@ -18,206 +9,70 @@ A self-hosted family photo album. All photos, videos, and metadata stay on your 
 git clone https://github.com/ahaqqu/MemoriQ.git
 cd MemoriQ
 
-# 2. Install Docker (if needed) and start Immich
+# 2. Install Docker (Linux only) and start Immich
 ./immich/setup.sh
 
 # 3. Create the first admin account
-# Open http://127.0.0.1:2283/auth/register and register the admin user.
+open http://127.0.0.1:2283/auth/register
 ```
 
-> **Note:** If Docker was just installed and `setup.sh` prints a message about
-> permissions, log out and back in (or run `newgrp docker`) so your user is
-> added to the `docker` group, then re-run `./immich/setup.sh`.
+That's it. MemoriQ runs at `http://127.0.0.1:2283`.
 
-## What `setup.sh` does
-
-1. Installs Docker Engine and the Docker Compose plugin if they are missing
-   (using the official `get.docker.com` installer).
-2. Creates `immich/.env` from `immich/.env.example` with:
-   - A randomly generated database password.
-   - Your system timezone (falls back to `UTC`).
-3. Creates the photo and database directories under `./data/immich/` with
-   secure permissions.
-4. Pulls the pinned Immich release images.
-5. Starts the services and waits for them to become healthy.
-
-`setup.sh` is idempotent: re-running it after the first run only re-applies
-permission and directory checks; it will not upgrade or restart services.
+> **macOS / Windows:** install [Docker Desktop](https://www.docker.com/products/docker-desktop/) first, then run `./immich/setup.sh`.
+>
+> **Linux permission note:** if `setup.sh` says your user is not in the `docker` group, log out and back in (or run `newgrp docker`), then re-run `./immich/setup.sh`.
 
 ## Daily commands
 
-| Task | Script |
-|------|--------|
-| Start services | `./immich/start.sh` |
-| Stop services | `./immich/stop.sh` |
+| Task | Command |
+|------|---------|
+| Start | `./immich/start.sh` |
+| Stop | `./immich/stop.sh` |
+| Update to the pinned release | `./immich/update.sh` |
+| Update to a new release | `./immich/set-version.sh <version>` |
 | Backup to an external disk | `./immich/backup.sh <destination>` |
 | Restore from a backup | `./immich/restore.sh <backup-folder>` |
-| Re-apply the pinned release | `./immich/update.sh` |
-| Change to a new pinned release | `./immich/set-version.sh <version>` |
 
-## Updating Immich
+## First-time configuration
 
-Immich is pinned to a concrete release in `immich/.env` for reproducibility. To
-move to a newer version, run the version helper with the target release tag:
+After creating the admin user:
 
-```bash
-# Read the release notes first: https://github.com/immich-app/immich/releases
-./immich/set-version.sh v1.131.3
-```
+1. **Add family members** — Administration → Users → Create user.
+2. **Enable mobile backup** — install the Immich app and turn on Background backup.
+3. **Review settings** — Administration → Settings:
+   - Storage template (default: `yyyy/MM/yyyyMMdd`)
+   - Trash retention (default: 30 days)
+   - Machine learning (Smart Search / Facial Recognition)
 
-This updates the pinned version in `immich/.env` and runs `./immich/update.sh`
-for you. No manual editing of `.env` is required.
+## Optional: access from anywhere
+
+### Secure public access with Tailscale Funnel
+
+The setup script can expose Immich on a free HTTPS URL like `https://<machine>.<tailnet>.ts.net` with no port forwarding.
+
+1. Generate an authkey at https://login.tailscale.com/admin/settings/keys. Recommended settings: **Reusable**, **Ephemeral**, **Pre-approved**.
+2. Run `./immich/setup.sh` and answer `y` when it asks about Tailscale, or run `./immich/setup-tailscale.sh` later.
+
+After setup, Immich is available at both the local URL and the public URL printed by the script. Check status anytime with `sudo tailscale funnel status`.
+
+### LAN access
+
+For LAN-only access, put a reverse proxy with TLS in front of `127.0.0.1:2283`. Do not expose the admin registration page to untrusted networks.
 
 ## Backup and restore
 
-Uploaded media and the database are stored under `./data/immich/` by default.
-This path is configured in `immich/.env` and is git-ignored so large files are
-never committed.
-
-The database password is stored only in `immich/.env`, so keep that file safe.
-
-### Backup
-
-Run the backup script to copy photos, a PostgreSQL dump, and Immich config to
-an external destination:
+All data lives under `./data/immich/` by default. The database password is only in `immich/.env` — keep that file safe.
 
 ```bash
+# Backup: creates a timestamped folder immich-backup-YYYYMMDD-HHMMSS
 ./immich/backup.sh /mnt/external-disk/backups
-```
 
-Each run creates a timestamped folder: `immich-backup-YYYYMMDD-HHMMSS`.
-
-### Restore
-
-Point `restore.sh` at the timestamped backup folder:
-
-```bash
+# Restore: destructive; replaces current data with the backup
 ./immich/restore.sh /mnt/external-disk/backups/immich-backup-YYYYMMDD-HHMMSS
 ```
 
-`restore.sh` is **destructive**: it stops Immich, saves copies of the current
-`.env` and `docker-compose.yml` as `.restore-backup-*`, restores the backed-up
-config, replaces the photo library, wipes the PostgreSQL data directory,
-replays the SQL dump, and starts the stack again.
+Use `./immich/restore.sh --yes <folder>` to skip confirmation.
 
-You can restore onto the **same host** (previous data is replaced) or a
-**brand-new host** (run `./immich/setup.sh` first to install Docker and create
-the initial directories, then run `restore.sh`). In both cases `restore.sh`
-overwrites the active `.env` with the backed-up one so the database password
-matches the restored database.
+---
 
-Use `--yes` to skip the interactive confirmation:
-
-```bash
-./immich/restore.sh --yes /mnt/external-disk/backups/immich-backup-YYYYMMDD-HHMMSS
-```
-
-## Network and security
-
-By default the web UI listens on `127.0.0.1:2283` only. This is the safest
-choice for a single-machine setup.
-
-### Expose MemoriQ to the internet securely (Tailscale Funnel)
-
-You can expose Immich on a public `*.ts.net` URL with free, automatic TLS and
-no router port forwarding.
-
-#### 1. Generate a Tailscale authkey
-
-1. Sign up or log in at https://login.tailscale.com.
-2. Go to **Admin console → Settings → Keys** (`https://login.tailscale.com/admin/settings/keys`).
-3. Click **Generate auth key**.
-4. Recommended settings for a server:
-   - **Reusable:** Yes (so the script can re-authenticate after reinstalls).
-   - **Ephemeral:** Yes (the node is removed from your tailnet when it goes offline).
-   - **Pre-approved:** Yes (skips manual device approval).
-   - **Expiry:** 90 days, or set to **No expiry** for a long-lived home server.
-5. Copy the key. It looks like `tskey-auth-...`.
-
-Keep the key secret: anyone with it can join your tailnet.
-
-#### 2. Enable Funnel during first setup
-
-`./immich/setup.sh` will ask at the end:
-
-```text
-Set up Tailscale Funnel now? [y/N]:
-```
-
-Answer `y`, paste the authkey, and the script installs Tailscale, authenticates
-this machine, and exposes Immich on a public HTTPS URL.
-
-#### 3. Enable Funnel later
-
-If you skipped it during setup, run:
-
-```bash
-./immich/setup-tailscale.sh
-```
-
-You can also put the authkey in `immich/.env` first to avoid the prompt:
-
-```bash
-# Edit immich/.env and add:
-TAILSCALE_AUTHKEY=tskey-auth-...
-
-./immich/setup-tailscale.sh
-```
-
-#### 4. Daily lifecycle
-
-| Task | Script |
-|------|--------|
-| Start Immich | `./immich/start.sh` |
-| Stop Immich | `./immich/stop.sh` |
-| Check Funnel status | `sudo tailscale funnel status` |
-
-`./immich/start.sh` automatically re-enables Tailscale Funnel if it was set up
-before, so Immich becomes publicly reachable again after a reboot.
-
-After enabling Funnel, Immich is available at both the local URL and the
-public URL printed by the script.
-
-### Expose MemoriQ to your LAN
-
-If you prefer LAN-only access instead of Tailscale, place a reverse proxy with
-TLS in front of Immich and do not leave the admin registration page open to
-untrusted networks.
-
-## What to configure after creating the admin user
-
-Immich works out of the box, but for a family photo album you will usually want
-at least one extra step:
-
-### 1. Create accounts for family members
-
-Only the admin account is created automatically. Add users from:
-**Administration → Users → Create user**. Immich sends invites via email if
-you configure SMTP; otherwise just give family members their username/password
-or turn on OAuth.
-
-### 2. Turn on automatic mobile backup (recommended)
-
-Install the Immich mobile app and enable **Settings → Background backup**.
-Photos and videos then upload to MemoriQ automatically when on Wi-Fi.
-
-### 3. Review default settings
-
-Open **Administration → Settings** and check the following at least once:
-
-- **Storage template** — decide how uploaded files are organized on disk
-  (default: `yyyy/MM/yyyyMMdd`).
-- **Trash** — deleted items stay for 30 days by default; adjust if you want.
-- **Machine learning** — Smart Search and Facial Recognition run automatically.
-  Disable them if the server is low on CPU/RAM, or if you do not want facial
-  recognition.
-- **Image settings** — thumbnail quality/resolution affect storage use.
-
-These are Immich features, not scripts, so they are configured through the web
-UI. Defaults are safe for home use.
-
-## Repository rules
-
-See [`AGENTS.md`](AGENTS.md).
-
-> **No manual setup.** Every host-level action goes through a committed script.
+**Maintainer notes** — how this repo is organized, the "scripted setup" rule, and service details are in [`AGENTS.md`](AGENTS.md).
