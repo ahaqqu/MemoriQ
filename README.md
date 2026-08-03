@@ -50,7 +50,7 @@ permission and directory checks; it will not upgrade or restart services.
 |------|--------|
 | Start services | `./immich/start.sh` |
 | Stop services | `./immich/stop.sh` |
-| Backup to an external disk | `./immich/backup.sh <destination>` or `BACKUP_DEST=<path> ./immich/backup.sh` |
+| Backup to an external disk | `./immich/backup.sh <destination>` |
 | Re-apply the pinned release | `./immich/update.sh` |
 | Change to a new pinned release | `./immich/set-version.sh <version>` |
 
@@ -78,11 +78,7 @@ password is stored only in `.env`. Use the backup script to copy photos, a
 PostgreSQL dump, and Immich config to an external destination:
 
 ```bash
-# Run from the repository root
 ./immich/backup.sh /mnt/external-disk/backups
-
-# Or set the destination via environment variable
-BACKUP_DEST=/mnt/external-disk/backups ./immich/backup.sh
 ```
 
 ## Network and security

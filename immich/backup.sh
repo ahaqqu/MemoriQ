@@ -5,7 +5,6 @@ set -euo pipefail
 #
 # Usage:
 #   ./immich/backup.sh <destination-directory>
-#   BACKUP_DEST=/mnt/backup ./immich/backup.sh
 #
 # What is backed up:
 #   - Photo/video library (UPLOAD_LOCATION from immich/.env)
@@ -22,7 +21,6 @@ require_env
 usage() {
   cat <<EOF
 Usage: $(basename "$0") <destination-directory>
-   or: BACKUP_DEST=<path> $(basename "$0")
 
 The destination directory is created if it does not exist. Each run creates
 a timestamped sub-folder: immich-backup-YYYYMMDD-HHMMSS.
@@ -32,13 +30,13 @@ EOF
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
-if [[ $# -gt 1 ]]; then
-  echo "ERROR: only one destination directory is allowed" >&2
+if [[ $# -ne 1 ]]; then
+  echo "ERROR: exactly one destination directory is required" >&2
   usage >&2
   exit 1
 fi
 
-DEST_ARG="${1:-${BACKUP_DEST:-}}"
+DEST_ARG="$1"
 
 if [[ -z "${DEST_ARG}" ]]; then
   echo "ERROR: backup destination not provided." >&2
