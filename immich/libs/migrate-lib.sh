@@ -315,10 +315,10 @@ prompt_zip_files() {
   if [ -n "${!env_var:-}" ]; then
     path="${!env_var}"
   else
-    echo ""
-    echo "[migrate] ${label}"
-    echo "  Provide the path to one or more ZIP archives. Wildcards are supported."
-    echo "  Example: ${example}"
+    echo "" >&2
+    echo "[migrate] ${label}" >&2
+    echo "  Provide the path to one or more ZIP archives. Wildcards are supported." >&2
+    echo "  Example: ${example}" >&2
     read -rp "  ${label}: " path
   fi
 
@@ -329,7 +329,8 @@ prompt_zip_files() {
 
   local matches=()
   shopt -s nullglob
-  matches=(${path})
+  # Use compgen to expand the glob while preserving spaces in filenames.
+  readarray -t matches < <(compgen -G "${path}")
   shopt -u nullglob
 
   if [ ${#matches[@]} -eq 0 ]; then
@@ -350,6 +351,26 @@ prompt_zip_files() {
 }
 
 # ---------------------------------------------------------------------------
+# Safe ZIP extraction (defends against zip-slip / path traversal)
+# ---------------------------------------------------------------------------
+safe_unzip() {
+  local zipfile="$1"
+  local dest="$2"
+  python3 - "$zipfile" "$dest" <<'PY'
+import os, sys, zipfile
+zip_path, dest = sys.argv[1], sys.argv[2]
+dest_real = os.path.realpath(dest) + os.sep
+with zipfile.ZipFile(zip_path, 'r') as zf:
+    for member in zf.namelist():
+        target = os.path.realpath(os.path.join(dest, member))
+        if not target.startswith(dest_real):
+            print(f"ERROR: zip-slip path detected: {member}", file=sys.stderr)
+            sys.exit(1)
+    zf.extractall(dest)
+PY
+}
+
+# ---------------------------------------------------------------------------
 # Common migration flow
 # ---------------------------------------------------------------------------
 prepare_migration() {
@@ -367,7 +388,11 @@ run_migration() {
   if prompt_yes_no "Run a dry-run first to preview what will be imported?" "y"; then
     echo ""
     echo "[migrate] === Dry-run (no uploads yet) ==="
-    "${cmd[@]}" --dry-run || true
+    (
+      export IMMICH_GO_UPLOAD_SERVER="${SERVER_URL}"
+      export IMMICH_GO_UPLOAD_API_KEY="${IMMICH_API_KEY}"
+      "${cmd[@]}" --dry-run || true
+    )
     echo ""
     if ! prompt_yes_no "Proceed with the real import?" "n"; then
       echo "[migrate] Import cancelled."
@@ -379,7 +404,11 @@ run_migration() {
   echo ""
   echo "[migrate] === Starting import ==="
   echo "[migrate] This may take hours for large libraries. It is resumable."
-  "${cmd[@]}"
+  (
+    export IMMICH_GO_UPLOAD_SERVER="${SERVER_URL}"
+    export IMMICH_GO_UPLOAD_API_KEY="${IMMICH_API_KEY}"
+    "${cmd[@]}"
+  )
 }
 
 cleanup_staging() {

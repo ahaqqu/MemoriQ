@@ -23,6 +23,7 @@ source ./libs/lib.sh
 
 require_docker
 require_env
+require_command curl
 
 # --- 1. Make sure Immich is running locally ---
 if ! curl -fsS "http://127.0.0.1:2283/api/server/ping" >/dev/null 2>&1; then
@@ -32,7 +33,28 @@ if ! curl -fsS "http://127.0.0.1:2283/api/server/ping" >/dev/null 2>&1; then
 fi
 
 # --- 2. Ensure TAILSCALE_AUTHKEY is set ---
-TAILSCALE_AUTHKEY="$(env_value TAILSCALE_AUTHKEY)"
+# Keep the Tailscale authkey in its own file so it is not loaded into the
+# Immich application containers via docker-compose.yml env_file.
+TAILSCALE_ENV_FILE="${IMMICH_DIR}/.env.tailscale"
+TAILSCALE_AUTHKEY="$(env_value TAILSCALE_AUTHKEY "${TAILSCALE_ENV_FILE}")"
+
+# If the key is still in the old immich/.env location (pre-0.0 migration),
+# move it to .env.tailscale and remove it from .env automatically.
+if [ -z "${TAILSCALE_AUTHKEY}" ] && [ -f "${IMMICH_DIR}/.env" ]; then
+  TAILSCALE_AUTHKEY="$(env_value TAILSCALE_AUTHKEY)"
+  if [ -n "${TAILSCALE_AUTHKEY}" ]; then
+    echo "[setup] Migrating TAILSCALE_AUTHKEY from .env to .env.tailscale..."
+    {
+      echo "# Tailscale Funnel authkey. Generated at https://login.tailscale.com/admin/settings/keys"
+      echo "TAILSCALE_AUTHKEY=${TAILSCALE_AUTHKEY}"
+    } > "${TAILSCALE_ENV_FILE}"
+    chmod 600 "${TAILSCALE_ENV_FILE}"
+    grep -v '^TAILSCALE_AUTHKEY=' "${IMMICH_DIR}/.env" > "${IMMICH_DIR}/.env.tmp"
+    chmod 600 "${IMMICH_DIR}/.env.tmp"
+    mv -f "${IMMICH_DIR}/.env.tmp" "${IMMICH_DIR}/.env"
+  fi
+fi
+
 if [ -z "${TAILSCALE_AUTHKEY}" ]; then
   echo ""
   echo "Tailscale Funnel requires an authkey."
@@ -47,14 +69,12 @@ if [ -z "${TAILSCALE_AUTHKEY}" ]; then
     exit 1
   fi
 
-  # Append to .env, keeping it private.
   {
-    echo ""
     echo "# Tailscale Funnel authkey. Generated at https://login.tailscale.com/admin/settings/keys"
     echo "TAILSCALE_AUTHKEY=${TAILSCALE_AUTHKEY}"
-  } >> "${IMMICH_DIR}/.env"
-  chmod 600 "${IMMICH_DIR}/.env"
-  echo "[setup] Saved TAILSCALE_AUTHKEY to immich/.env"
+  } > "${TAILSCALE_ENV_FILE}"
+  chmod 600 "${TAILSCALE_ENV_FILE}"
+  echo "[setup] Saved TAILSCALE_AUTHKEY to immich/.env.tailscale"
 fi
 
 # --- 3. Install Tailscale if missing ---
@@ -74,7 +94,13 @@ fi
 # --- 5. Authenticate with the authkey ---
 if ! tailscale status >/dev/null 2>&1; then
   echo "[setup] Authenticating with Tailscale..."
-  sudo tailscale up --authkey="${TAILSCALE_AUTHKEY}" --accept-routes=false --ssh
+  # Pass the key via a temporary file using Tailscale's file: prefix so the
+  # secret never appears in the process list.
+  authkey_tmp="$(mktemp)"
+  printf '%s' "${TAILSCALE_AUTHKEY}" > "${authkey_tmp}"
+  chmod 600 "${authkey_tmp}"
+  trap 'rm -f "${authkey_tmp}"' RETURN
+  sudo tailscale up --auth-key="file:${authkey_tmp}" --accept-routes=false --ssh
 else
   echo "[setup] Already authenticated to Tailscale."
 fi
@@ -109,7 +135,7 @@ fi
 
 # --- 7. Report public URL ---
 TAILSCALE_NAME="$(tailscale status --self --peers=false 2>/dev/null | awk 'NR==1{print $1}' || true)"
-TAILNET_DNS="$(tailscale status --json 2>/dev/null | grep -o '"magicDNSSuffix":"[^"]*"' | cut -d'"' -f4 || true)"
+TAILNET_DNS="$(tailscale status --json 2>/dev/null | python3 -c 'import sys,json; print(json.load(sys.stdin).get("magicDNSSuffix",""))' || true)"
 PUBLIC_URL="https://${TAILSCALE_NAME}${TAILNET_DNS}"
 
 # Persist the setup-completed marker so immich/start.sh re-enables Funnel.

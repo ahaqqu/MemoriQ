@@ -106,7 +106,7 @@ Keep your iCloud export archives until you have verified the migration in Immich
 
 ## Backup and restore
 
-All data lives under `./data/immich/` by default. The database password is only in `immich/.env` — keep that file safe.
+All data lives under `./data/immich/` by default (photos in `data/immich/photos`, database in `data/immich/postgres`, relative to the repo root). The database password is only in `immich/.env` — keep that file safe.
 
 ```bash
 # Backup: creates a timestamped folder immich-backup-YYYYMMDD-HHMMSS

@@ -31,7 +31,10 @@ require_env() {
 }
 
 compose() {
-  docker compose -f "${IMMICH_DIR}/compose/docker-compose.yml" --env-file "${IMMICH_DIR}/.env" "$@"
+  # Use the immich/ directory as the project directory so that relative paths
+  # in .env (e.g. ../data/immich/photos) and env_file: .env resolve consistently
+  # with the existing project layout.
+  docker compose --project-directory "${IMMICH_DIR}" -f "${IMMICH_DIR}/compose/docker-compose.yml" --env-file "${IMMICH_DIR}/.env" "$@"
 }
 
 generate_password() {
@@ -105,12 +108,27 @@ wait_for_immich_api() {
   return 1
 }
 
-# Read a value from immich/.env, returning empty if not set.
+# Read a value from an env file, returning empty if not set.
+# Strips surrounding whitespace, optional single/double quotes, and inline comments.
+# Usage: env_value KEY [file]
 env_value() {
   local key="$1"
-  if [ -f "${IMMICH_DIR}/.env" ]; then
-    grep "^${key}=" "${IMMICH_DIR}/.env" | cut -d= -f2- || true
+  local file="${2:-${IMMICH_DIR}/.env}"
+  local val=""
+  if [ -f "$file" ]; then
+    val=$(awk -v key="$key" '
+      match($0, "^[[:space:]]*" key "[[:space:]]*=") {
+        val = substr($0, RSTART + RLENGTH)
+        if (val ~ /^".*"$/) { gsub(/^"|"$/, "", val) }
+        else if (val ~ /^'"'"'.*'"'"'$/) { gsub(/^'"'"'|'"'"'$/, "", val) }
+        sub(/[[:space:]]*#.*/, "", val)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+        print val
+        exit
+      }
+    ' "$file")
   fi
+  printf '%s' "$val"
 }
 
 # Re-enable Tailscale Funnel for Immich if it has been set up before.

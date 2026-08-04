@@ -7,9 +7,6 @@ set -euo pipefail
 # This script is called automatically by setup.sh when Docker is missing.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "${SCRIPT_DIR}"
-
-source ./libs/lib.sh
 
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   echo "[install-docker] Docker and Docker Compose plugin are already installed."
@@ -66,9 +63,21 @@ $SUDO sh -c "$(install_script)"
 
 # Try to add the current user to the docker group so they can run Docker without
 # sudo. The group change normally requires a new login session.
+DOCKER_USER="${SUDO_USER:-${USER}}"
 if [ "$(id -u)" -ne 0 ] && command -v usermod >/dev/null 2>&1; then
-  $SUDO usermod -aG docker "${USER}" 2>/dev/null || true
+  $SUDO usermod -aG docker "${DOCKER_USER}" 2>/dev/null || true
 fi
 
 echo "[install-docker] Docker installation complete."
+
+if [ -n "${DOCKER_USER:-}" ]; then
+  echo "[install-docker] Added ${DOCKER_USER} to the 'docker' group."
+fi
+
+if command -v docker >/dev/null 2>&1 && ! docker compose version >/dev/null 2>&1; then
+  echo "[install-docker] The 'docker' group change requires a new login session." >&2
+  echo "[install-docker] Please log out and back in (or run 'newgrp docker'), then re-run ./immich/setup.sh." >&2
+  exit 1
+fi
+
 echo "[install-docker] If 'docker compose' is still not available, log out and back in (or run 'newgrp docker') and re-run ./immich/setup.sh."

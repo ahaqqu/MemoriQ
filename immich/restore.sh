@@ -21,7 +21,7 @@ set -euo pipefail
 # WARNING: this is destructive. Current library and database will be replaced.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/lib.sh"
+source "${SCRIPT_DIR}/libs/lib.sh"
 
 require_command rsync
 require_docker
@@ -93,13 +93,8 @@ done
 # ---------------------------------------------------------------------------
 cd "${SCRIPT_DIR}"
 
-get_env_var() {
-  local key="$1"
-  grep -E "^${key}=" .env | cut -d= -f2-
-}
-
-UPLOAD_LOCATION="$(get_env_var UPLOAD_LOCATION)"
-DB_DATA_LOCATION="$(get_env_var DB_DATA_LOCATION)"
+UPLOAD_LOCATION="$(env_value UPLOAD_LOCATION)"
+DB_DATA_LOCATION="$(env_value DB_DATA_LOCATION)"
 
 : "${UPLOAD_LOCATION:?UPLOAD_LOCATION must be set in .env}"
 : "${DB_DATA_LOCATION:?DB_DATA_LOCATION must be set in .env}"
@@ -216,11 +211,11 @@ cp -a "${BACKUP_RUN}/config/docker-compose.yml" compose/docker-compose.yml
 # ---------------------------------------------------------------------------
 # Re-read required values from the restored .env
 # ---------------------------------------------------------------------------
-UPLOAD_LOCATION="$(get_env_var UPLOAD_LOCATION)"
-DB_DATA_LOCATION="$(get_env_var DB_DATA_LOCATION)"
-DB_USERNAME="$(get_env_var DB_USERNAME)"
-DB_PASSWORD="$(get_env_var DB_PASSWORD)"
-DB_DATABASE_NAME="$(get_env_var DB_DATABASE_NAME)"
+UPLOAD_LOCATION="$(env_value UPLOAD_LOCATION)"
+DB_DATA_LOCATION="$(env_value DB_DATA_LOCATION)"
+DB_USERNAME="$(env_value DB_USERNAME)"
+DB_PASSWORD="$(env_value DB_PASSWORD)"
+DB_DATABASE_NAME="$(env_value DB_DATABASE_NAME)"
 
 : "${UPLOAD_LOCATION:?UPLOAD_LOCATION must be set in .env}"
 : "${DB_DATA_LOCATION:?DB_DATA_LOCATION must be set in .env}"
@@ -230,6 +225,16 @@ DB_DATABASE_NAME="$(get_env_var DB_DATABASE_NAME)"
 
 ABS_UPLOAD="$(realpath -m "${UPLOAD_LOCATION}" 2>/dev/null || readlink -f "${UPLOAD_LOCATION}")"
 ABS_DB="$(realpath -m "${DB_DATA_LOCATION}" 2>/dev/null || readlink -f "${DB_DATA_LOCATION}")"
+
+validate_data_path() {
+  local path="$1" name="$2"
+  if [[ -z "${path}" ]] || [[ "${path}" == "/" ]] || [[ "${path}" == "/home" ]] || [[ "${path}" == "/root" ]]; then
+    echo "ERROR: refusing to use unsafe ${name}=${path}" >&2
+    exit 1
+  fi
+}
+validate_data_path "${ABS_UPLOAD}" "UPLOAD_LOCATION"
+validate_data_path "${ABS_DB}" "DB_DATA_LOCATION"
 
 # ---------------------------------------------------------------------------
 # Restore library
@@ -255,7 +260,10 @@ wipe_db_data() {
     rm -rf "${ABS_DB}"/* "${ABS_DB}"/.[^.]* 2>/dev/null || true
   else
     echo "[restore] Database directory is owned by container user; using Docker to wipe it..."
-    docker run --rm -v "${ABS_DB}:/pgdata" alpine rm -rf /pgdata
+    # Use find -mindepth 1 -delete so we only remove the contents of the bind
+    # mount, not the mount point itself (which would fail and abort the restore).
+    docker run --rm -v "${ABS_DB}:/pgdata" alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b \
+      find /pgdata -mindepth 1 -delete
   fi
 
   mkdir -p "${ABS_DB}"
@@ -270,7 +278,10 @@ compose up -d database
 echo "[restore] Waiting for database to accept connections..."
 ready=false
 for i in $(seq 1 60); do
-  if compose exec -T -e PGPASSWORD="${DB_PASSWORD}" database pg_isready -U "${DB_USERNAME}" -d postgres >/dev/null 2>&1; then
+  if (
+    export PGPASSWORD="${DB_PASSWORD}"
+    compose exec -T -e PGPASSWORD database pg_isready -U "${DB_USERNAME}" -d postgres >/dev/null 2>&1
+  ); then
     ready=true
     break
   fi
@@ -283,13 +294,18 @@ if [[ "${ready}" != "true" ]]; then
 fi
 
 echo "[restore] Replaying SQL dump..."
-compose exec -T -e PGPASSWORD="${DB_PASSWORD}" database psql -U "${DB_USERNAME}" -d postgres < "${BACKUP_RUN}/db/immich.sql"
+(
+  export PGPASSWORD="${DB_PASSWORD}"
+  compose exec -T -e PGPASSWORD database psql -U "${DB_USERNAME}" -d postgres < "${BACKUP_RUN}/db/immich.sql"
+)
 
 # ---------------------------------------------------------------------------
 # Start all services
 # ---------------------------------------------------------------------------
 echo "[restore] Starting all Immich services..."
 compose up -d --wait
+
+wait_for_immich_api || true
 
 echo ""
 echo "[restore] Restore complete."

@@ -12,7 +12,7 @@ set -euo pipefail
 #   - immich/.env and immich/docker-compose.yml
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/lib.sh"
+source "${SCRIPT_DIR}/libs/lib.sh"
 
 require_command rsync
 require_docker
@@ -54,20 +54,22 @@ cd "${SCRIPT_DIR}"
 # ---------------------------------------------------------------------------
 # Read required values from .env
 # ---------------------------------------------------------------------------
-get_env_var() {
-  local key="$1"
-  grep -E "^${key}=" .env | cut -d= -f2-
-}
-
-UPLOAD_LOCATION="$(get_env_var UPLOAD_LOCATION)"
-DB_USERNAME="$(get_env_var DB_USERNAME)"
-DB_PASSWORD="$(get_env_var DB_PASSWORD)"
+UPLOAD_LOCATION="$(env_value UPLOAD_LOCATION)"
+DB_USERNAME="$(env_value DB_USERNAME)"
+DB_PASSWORD="$(env_value DB_PASSWORD)"
 
 : "${UPLOAD_LOCATION:?UPLOAD_LOCATION must be set in .env}"
 : "${DB_USERNAME:?DB_USERNAME must be set in .env}"
 : "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
 
 ABS_UPLOAD="$(realpath -m "${UPLOAD_LOCATION}" 2>/dev/null || readlink -f "${UPLOAD_LOCATION}")"
+
+# Refuse to write the backup into the upload location; it would become part of
+# the rsync source and recursively explode.
+if [[ "${DEST}" == "${ABS_UPLOAD}"* ]]; then
+  echo "ERROR: backup destination cannot be inside UPLOAD_LOCATION (${ABS_UPLOAD})." >&2
+  exit 1
+fi
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 RUN_DIR="${DEST}/immich-backup-${TIMESTAMP}"
@@ -80,11 +82,17 @@ CONFIG_DIR="${RUN_DIR}/config"
 # ---------------------------------------------------------------------------
 dump_database() {
   echo "[backup] Dumping PostgreSQL database..."
-  compose exec -T -e PGPASSWORD="${DB_PASSWORD}" database pg_dumpall -c -U "${DB_USERNAME}" > "${DB_DIR}/immich.sql"
+  # Export the password in a subshell so the literal value never appears in
+  # the docker compose exec command line (visible via ps).
+  (
+    export PGPASSWORD="${DB_PASSWORD}"
+    compose exec -T -e PGPASSWORD database pg_dumpall -c -U "${DB_USERNAME}" > "${DB_DIR}/immich.sql"
+  )
   if [[ ! -s "${DB_DIR}/immich.sql" ]]; then
     echo "ERROR: database dump is empty or failed." >&2
     exit 1
   fi
+  chmod 600 "${DB_DIR}/immich.sql"
 }
 
 copy_library() {
@@ -95,7 +103,7 @@ copy_library() {
 copy_config() {
   echo "[backup] Copying configuration files..."
   cp -a .env compose/docker-compose.yml "${CONFIG_DIR}/"
-  chmod 600 "${CONFIG_DIR}/.env" 2>/dev/null || true
+  chmod 600 "${CONFIG_DIR}/.env" "${CONFIG_DIR}/docker-compose.yml" 2>/dev/null || true
 }
 
 write_info() {
@@ -103,7 +111,7 @@ write_info() {
 MemoriQ / Immich backup
 ------------------------
 Created: $(date -Iseconds)
-Immich version: $(get_env_var IMMICH_VERSION)
+Immich version: $(env_value IMMICH_VERSION)
 Source upload location: ${ABS_UPLOAD}
 EOF
 }
@@ -121,4 +129,5 @@ copy_config
 write_info
 
 echo "[backup] Backup complete: ${RUN_DIR}"
+chmod -R go-rwx "${RUN_DIR}" 2>/dev/null || true
 du -sh "${RUN_DIR}" 2>/dev/null || true
