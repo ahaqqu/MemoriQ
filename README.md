@@ -32,6 +32,8 @@ That's it. MemoriQ runs at `http://127.0.0.1:2283`.
 | Update to a new release | `./immich/set-version.sh <version>` |
 | Backup to an external disk | `./immich/backup.sh <destination>` |
 | Restore from a backup | `./immich/restore.sh <backup-folder>` |
+| Migrate from Google Photos | `./immich/migrate-from-google-photos.sh` |
+| Migrate from iCloud Photos | `./immich/migrate-from-icloud.sh` |
 
 ## First-time configuration
 
@@ -58,6 +60,49 @@ After setup, Immich is available at both the local URL and the public URL printe
 ### LAN access
 
 For LAN-only access, put a reverse proxy with TLS in front of `127.0.0.1:2283`. Do not expose the admin registration page to untrusted networks.
+
+## Migrate from Google Photos
+
+Import your existing Google Photos library from a Google Takeout ZIP archive.
+
+1. Request a Google Takeout for **Google Photos** at https://takeout.google.com.
+   - Choose **ZIP** and **50 GB** per archive.
+   - Download all parts.
+2. Move the ZIP file(s) to your MemoriQ server.
+3. Run the migration script:
+
+```bash
+./immich/migrate-from-google-photos.sh
+```
+
+The script will:
+- Extract the ZIP(s) automatically.
+- Create an Immich API key from your admin account and cache it securely.
+- Run a dry-run preview first, then import photos, videos, albums, dates, and GPS.
+- Skip duplicates if re-run.
+
+Keep your Takeout archives until you have verified the migration in Immich.
+
+## Migrate from iCloud Photos
+
+Import your existing iCloud Photos library from an Apple data export ZIP archive.
+
+1. Request an iCloud data export for **iCloud Photos** at https://privacy.apple.com.
+   - Download all parts.
+2. Move the ZIP file(s) to your MemoriQ server.
+3. Run the migration script:
+
+```bash
+./immich/migrate-from-icloud.sh
+```
+
+The script will:
+- Extract the ZIP(s) automatically.
+- Create an Immich API key from your admin account and cache it securely.
+- Run a dry-run preview first, then import photos, videos, albums, and dates.
+- Skip duplicates if re-run.
+
+Keep your iCloud export archives until you have verified the migration in Immich.
 
 ## Backup and restore
 
