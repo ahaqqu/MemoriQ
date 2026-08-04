@@ -33,6 +33,7 @@ That's it. MemoriQ runs at `http://127.0.0.1:2283`.
 | Backup to an external disk | `./immich/backup.sh <destination>` |
 | Restore from a backup | `./immich/restore.sh <backup-folder>` |
 | Migrate from Google Photos | `./immich/migrate-from-google-photos.sh` |
+| Migrate from iCloud Photos | `./immich/migrate-from-icloud.sh` |
 
 ## First-time configuration
 
@@ -81,6 +82,27 @@ The script will:
 - Skip duplicates if re-run.
 
 Keep your Takeout archives until you have verified the migration in Immich.
+
+## Migrate from iCloud Photos
+
+Import your existing iCloud Photos library from an Apple data export ZIP archive.
+
+1. Request an iCloud data export for **iCloud Photos** at https://privacy.apple.com.
+   - Download all parts.
+2. Move the ZIP file(s) to your MemoriQ server.
+3. Run the migration script:
+
+```bash
+./immich/migrate-from-icloud.sh
+```
+
+The script will:
+- Extract the ZIP(s) automatically.
+- Create an Immich API key from your admin account and cache it securely.
+- Run a dry-run preview first, then import photos, videos, albums, and dates.
+- Skip duplicates if re-run.
+
+Keep your iCloud export archives until you have verified the migration in Immich.
 
 ## Backup and restore
 

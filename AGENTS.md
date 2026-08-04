@@ -35,3 +35,4 @@ MemoriQ is a self-hosted family photo album. Photos and metadata are stored **lo
   - `setup-tailscale.sh` — optional add-on that exposes Immich on a public `*.ts.net` URL via Tailscale Funnel.
   - `start.sh` — starts Immich and automatically re-enables Tailscale Funnel if it was previously set up.
   - `migrate-from-google-photos.sh` — migrate a Google Photos Takeout ZIP archive into Immich.
+  - `migrate-from-icloud.sh` — migrate an iCloud Photos export ZIP archive into Immich.
