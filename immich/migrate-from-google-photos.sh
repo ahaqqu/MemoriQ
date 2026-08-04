@@ -117,8 +117,6 @@ cmd=(
   "${IMMICH_GO_BIN}"
   upload
   from-google-photos
-  --server="${SERVER_URL}"
-  --api-key="${IMMICH_API_KEY}"
   --sync-albums="${SYNC_ALBUMS}"
   --include-partner="${INCLUDE_PARTNER}"
   --include-archived="${INCLUDE_ARCHIVED}"

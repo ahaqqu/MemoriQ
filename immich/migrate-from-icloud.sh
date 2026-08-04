@@ -81,8 +81,6 @@ cmd=(
   "${IMMICH_GO_BIN}"
   upload
   from-icloud
-  --server="${SERVER_URL}"
-  --api-key="${IMMICH_API_KEY}"
   --memories="${IMPORT_MEMORIES}"
   --concurrent-tasks="${CONCURRENT_TASKS}"
   --manage-heic-jpeg=StackCoverJPG

@@ -34,8 +34,10 @@ else
   DB_PASSWORD="$(generate_password)"
   SYSTEM_TZ="$(detect_timezone)"
 
+  # Escape the timezone string so sed treats it as literal replacement text.
+  safe_tz=$(printf '%s' "$SYSTEM_TZ" | sed 's/[&\\/]/\\&/g')
   sed -e "s/^DB_PASSWORD=.*/DB_PASSWORD=${DB_PASSWORD}/" \
-      -e "s#^TZ=.*#TZ=${SYSTEM_TZ}#" \
+      -e "s#^TZ=.*#TZ=${safe_tz}#" \
       .env.example > .env.tmp
 
   if [ "${#DB_PASSWORD}" -lt 32 ]; then
@@ -50,15 +52,20 @@ else
 fi
 
 # --- 3. Read and validate required paths from .env ---
-UPLOAD_LOCATION="$(grep '^UPLOAD_LOCATION=' .env | cut -d= -f2-)"
-DB_DATA_LOCATION="$(grep '^DB_DATA_LOCATION=' .env | cut -d= -f2-)"
+UPLOAD_LOCATION="$(env_value UPLOAD_LOCATION)"
+DB_DATA_LOCATION="$(env_value DB_DATA_LOCATION)"
 
 : "${UPLOAD_LOCATION:?UPLOAD_LOCATION must be set in .env}"
 : "${DB_DATA_LOCATION:?DB_DATA_LOCATION must be set in .env}"
 
+# Resolve to absolute paths so parent-directory lockdown works for the
+# default relative paths (../data/immich/...) in .env.example.
+UPLOAD_LOCATION_ABS="$(realpath -m "${UPLOAD_LOCATION}" 2>/dev/null || readlink -f "${UPLOAD_LOCATION}")"
+DB_DATA_LOCATION_ABS="$(realpath -m "${DB_DATA_LOCATION}" 2>/dev/null || readlink -f "${DB_DATA_LOCATION}")"
+
 # --- 4. Ensure data directories exist with secure permissions ---
-ensure_data_dir_permissions "${UPLOAD_LOCATION}" 750
-ensure_data_dir_permissions "${DB_DATA_LOCATION}" 700
+ensure_data_dir_permissions "${UPLOAD_LOCATION_ABS}" 750
+ensure_data_dir_permissions "${DB_DATA_LOCATION_ABS}" 700
 
 echo "[setup] Ensured data directories exist:"
 echo "  photos: ${UPLOAD_LOCATION}"

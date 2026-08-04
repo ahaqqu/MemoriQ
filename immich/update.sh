@@ -9,7 +9,7 @@ source ./libs/lib.sh
 require_docker
 require_env
 
-echo "[update] Pulling Immich images for version $(grep '^IMMICH_VERSION=' .env | cut -d= -f2-)..."
+echo "[update] Pulling Immich images for version $(env_value IMMICH_VERSION)..."
 compose pull
 
 echo "[update] Recreating services with new images..."

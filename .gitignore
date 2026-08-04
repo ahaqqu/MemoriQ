@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.setup-done
+.env.tailscale
 
 # Local data storage
 data/

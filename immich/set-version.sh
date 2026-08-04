@@ -28,11 +28,13 @@ if [[ ! "$NEW_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   fi
 fi
 
-current_version="$(grep '^IMMICH_VERSION=' .env | cut -d= -f2-)"
+current_version="$(env_value IMMICH_VERSION)"
 echo "[set-version] Changing IMMICH_VERSION from '$current_version' to '$NEW_VERSION'."
 
-sed -i.bak -e "s/^IMMICH_VERSION=.*/IMMICH_VERSION=${NEW_VERSION}/" .env
-chmod 600 .env
-rm -f .env.bak
+# Avoid sed replacement issues by rewriting the line safely.
+grep -v '^IMMICH_VERSION=' .env > .env.tmp
+echo "IMMICH_VERSION=${NEW_VERSION}" >> .env.tmp
+chmod 600 .env.tmp
+mv -f .env.tmp .env
 
 ./update.sh
